@@ -1,0 +1,20 @@
+:root {
+  --fondo: #282a36;
+  --panel: #44475a;
+  --panel-sec: #383a59;
+  --texto: #f8f8f2;
+  --muted: #6272a4;
+  --azul: #8be9fd;
+  --verde: #50fa7b;
+  --morado: #bd93f9;
+  --naranja: #ffb86c;
+  --rojo: #ff5555;
+  --acento: #ff79c6;
+}
+
+html, body {
+  height: 100%;
+  font-family: "Fira Code", Consolas, monospace;
+  background: var(--fondo);
+  color: var(--texto);
+}
