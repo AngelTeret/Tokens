@@ -37,3 +37,27 @@ html, body {
   margin: 0 auto;
   padding: 20px;
 }
+
+.tarjeta {
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+  border: 1px solid var(--panel-sec);
+  box-shadow: 0 0 10px rgba(0,0,0,0.4);
+}
+.tarjeta h2 {
+  font-size: 1.1rem;
+  margin-bottom: 12px;
+  color: var(--azul);
+}
+
+button {
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  font-weight: 600;
+  color: var(--texto);
+  background: var(--morado);
+}
