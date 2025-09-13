@@ -272,3 +272,46 @@ function analizar(texto) {
 
   return out.join("\n");
 }
+
+// 8) Descarga del archivo de salida
+function descargar(nombre, contenido){
+  const blob = new Blob([contenido], {type:"text/plain;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// 9) UI
+const entradaArchivo = document.getElementById("entradaArchivo");
+const entradaManual = document.getElementById("entradaManual");
+const botonAnalizarArchivo = document.getElementById("botonAnalizarArchivo");
+const botonAnalizarManual = document.getElementById("botonAnalizarManual");
+const botonDescargar = document.getElementById("botonDescargar");
+const salida = document.getElementById("salida");
+let ultimoReporte = "";
+
+botonAnalizarArchivo.addEventListener("click", ()=>{
+  const f = entradaArchivo.files && entradaArchivo.files[0];
+  if (!f) return alert("Selecciona un archivo (.txt o .js).");
+  const lector = new FileReader();
+  lector.onload = ()=>{
+    ultimoReporte = analizar(String(lector.result||""));
+    salida.value = ultimoReporte;
+    botonDescargar.disabled = false;
+  };
+  lector.readAsText(f,"utf-8");
+});
+
+botonAnalizarManual.addEventListener("click", ()=>{
+  const texto = String(entradaManual.value||"").trim();
+  if (!texto) return alert("Escribe código para analizar.");
+  ultimoReporte = analizar(texto);
+  salida.value = ultimoReporte;
+  botonDescargar.disabled = false;
+});
+
+botonDescargar.addEventListener("click", ()=>{
+  if (!ultimoReporte) return;
+  descargar("Salida.txt", ultimoReporte);
+});

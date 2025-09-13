@@ -88,3 +88,31 @@ input[type="file"]::file-selector-button {
   background: var(--morado);
   margin-right: 10px;
 }
+
+textarea {
+  width: 97%;
+  height: 280px;
+  border-radius: 8px;
+  padding: 14px;
+  resize: vertical;
+  background: var(--panel-sec);
+  color: var(--texto);
+  font-family: "Fira Code", monospace;
+  border: 1px solid var(--panel);
+}
+
+.pie {
+  text-align: center;
+  color: var(--muted);
+  padding: 20px;
+  font-size: 0.85rem;
+  background: var(--panel);
+  border-top: 2px solid var(--panel-sec);
+}
+
+.keyword { color: var(--morado); font-weight: 600; }
+.identifier { color: var(--texto); }
+.string { color: var(--verde); }
+.number { color: var(--naranja); }
+.operator { color: var(--azul); }
+.error { color: var(--rojo); font-weight: bold; }
