@@ -21,3 +21,19 @@ const funcion = new Set(["=>"]);
 const bitABit      = new Set(["&","|","^","~","<<",">>",">>>"]);
 const ternario     = new Set(["?",":"]);
 const delimitadores = new Set(["(",")","{","}","[","]",",",";",".",":"]);
+
+const esLetra  = c => /[A-Za-z_$]/.test(c);
+const esDigito = c => /[0-9]/.test(c);
+const escaparRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const listaSombras = [...palabrasReservadas, ...Array.from(literalesPalabra.keys())]
+  .sort((a,b)=>b.length-a.length);
+const regexSombra = new RegExp(`^(${listaSombras.map(escaparRegex).join("|")})([A-Za-z0-9_$]+)$`);
+function esSombraDeReservada(lexema){
+  const m = lexema.match(regexSombra);
+  return m ? { base:m[1], sufijo:m[2] } : null;
+}
+
+function pushError(arr, numLinea, col, lexema, descripcion) {
+  arr.push({ tipo: "ERROR", valor: lexema, linea: numLinea, columna: col, mensaje: descripcion });
+}

@@ -18,3 +18,22 @@ html, body {
   background: var(--fondo);
   color: var(--texto);
 }
+
+.encabezado {
+  padding: 20px;
+  text-align: center;
+  background: var(--panel);
+  border-bottom: 2px solid var(--panel-sec);
+}
+.encabezado h1 {
+  font-weight: 700;
+  font-size: 1.6rem;
+  color: var(--acento);
+}
+.sub { color: var(--muted); }
+
+.contenedor {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 20px;
+}
