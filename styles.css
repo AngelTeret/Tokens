@@ -12,7 +12,8 @@
   --acento: #ff79c6;
 }
 
-html, body {
+html,
+body {
   height: 100%;
   font-family: "Fira Code", Consolas, monospace;
   background: var(--fondo);
@@ -25,12 +26,16 @@ html, body {
   background: var(--panel);
   border-bottom: 2px solid var(--panel-sec);
 }
+
 .encabezado h1 {
   font-weight: 700;
   font-size: 1.6rem;
   color: var(--acento);
 }
-.sub { color: var(--muted); }
+
+.sub {
+  color: var(--muted);
+}
 
 .contenedor {
   max-width: 980px;
@@ -44,8 +49,9 @@ html, body {
   padding: 16px;
   margin-bottom: 20px;
   border: 1px solid var(--panel-sec);
-  box-shadow: 0 0 10px rgba(0,0,0,0.4);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
 }
+
 .tarjeta h2 {
   font-size: 1.1rem;
   margin-bottom: 12px;
@@ -60,4 +66,25 @@ button {
   font-weight: 600;
   color: var(--texto);
   background: var(--morado);
+}
+
+input[type="file"] {
+  color: var(--texto);
+  background: var(--panel);
+  border: 1px solid var(--panel-sec);
+  border-radius: 6px;
+  padding: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+input[type="file"]::file-selector-button {
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  font-weight: 600;
+  color: var(--texto);
+  background: var(--morado);
+  margin-right: 10px;
 }
