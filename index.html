@@ -1,51 +1,54 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <title>Reconocedor de Tokens (JavaScript)</title>
-
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Analizador y Coloreador Léxico</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="encabezado">
-    <h1>Reconocedor de Tokens – JavaScript</h1>
-    <p class="sub">Analiza código JS desde archivo o escribiéndolo. Genera <code>Salida.txt</code>.</p>
+  <header class="site-header">
+    <h1>Analizador y Coloreador Léxico</h1>
+    <p class="subtitle">Carga un archivo o pega tu código. Verás colores por token y el reporte detallado.</p>
   </header>
 
-  <main class="contenedor">
-    <section class="tarjeta">
-      <h2>Modo 1: Subir archivo</h2>
-      <p>Selecciona un archivo <strong>.txt</strong> o <strong>.js</strong> con tu código (una cadena por línea).</p>
-      <div class="fila">
-        <input id="entradaArchivo" type="file" accept=".txt,.js,.mjs,.jsx"/>
-        <button id="botonAnalizarArchivo">Analizar archivo</button>
+  <main class="vertical-container">
+
+    <section class="card">
+      <h2>Entrada</h2>
+      <label class="label">Selecciona archivo (.js / .txt)</label>
+      <div class="file-input-container">
+        <input id="archivo" type="file" accept=".js,.txt" />
+        <div class="file-status" id="file-status">Ningún archivo seleccionado</div>
+      </div>
+
+      <label class="label">O pega tu código aquí</label>
+      <textarea id="entrada" class="codebox" spellcheck="false" placeholder="// Escribe tu código aquí"></textarea>
+
+      <div class="actions">
+        <button id="btn-analizar" class="btn">Analizar</button>
+        <button id="btn-limpiar" class="btn btn-ghost">Limpiar</button>
       </div>
     </section>
 
-    <section class="tarjeta">
-      <h2>Modo 2: Escribir código</h2>
-      <textarea id="entradaManual" placeholder="// Escribe aquí tu código JavaScript…"></textarea>
-      <div class="fila derecha">
-        <button id="botonAnalizarManual">Analizar texto</button>
-      </div>
+
+    <section class="card">
+      <h2>Previsualización coloreada</h2>
+      <pre id="preview" class="codebox" aria-live="polite"></pre>
     </section>
 
-    <section class="tarjeta">
+
+    <section class="card">
       <h2>Reporte</h2>
-      <textarea id="salida" readonly placeholder="Aquí aparecerá el contenido de Salida.txt…"></textarea>
-      <div class="fila derecha">
-        <button id="botonDescargar" disabled>Descargar Salida.txt</button>
+      <textarea id="reporte" class="codebox" spellcheck="false" readonly></textarea>
+      <div class="actions">
+        <button id="btn-descargar" class="btn btn-secondary" disabled>Descargar Salida.txt</button>
+
       </div>
     </section>
   </main>
 
-  <footer class="pie">
-    <small></small>
-  </footer>
-
-  <script src="app.js" defer></script>
-  
-   
+  <script src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </body>
 </html>
