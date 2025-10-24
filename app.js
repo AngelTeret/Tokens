@@ -605,3 +605,255 @@ function validarSintaxisMinima(tokensPorLinea){
   }
   return null;
 }
+
+function analizarTextoCompleto(texto){
+  const lineas = texto.split("\n");
+  const tokensPorLinea = [];
+  const estado = { enComentarioBloque:false, enTemplate:false, stack:[], ultimoSignificativo:null };
+
+  let primerError = null;
+
+  for(let i=0;i<lineas.length;i++){
+    const res = lexLinea(lineas[i], i+1, estado);
+    tokensPorLinea.push(res.tokens);
+    for(const t of res.tokens){ if(t.tipo==="ERROR"){ primerError=t; break; } }
+    if(primerError) break;
+  }
+
+  if(!primerError && (estado.enComentarioBloque || estado.enTemplate)){
+    const lineaFinal = lineas.length || 1;
+    const lex = estado.enComentarioBloque
+      ? "Fin del código: El comentario de bloque '/*' nunca se cerró."
+      : "Fin del código: La plantilla literal '`' nunca se cerró.";
+    primerError = { tipo:"ERROR", lexema:lex, linea:lineaFinal, columna:1 };
+    if(!tokensPorLinea[lineaFinal-1]) tokensPorLinea[lineaFinal-1]=[];
+    tokensPorLinea[lineaFinal-1].push(primerError);
+  }
+
+  if(!primerError && estado.stack.length>0){
+    const top = estado.stack[estado.stack.length-1];
+    const lex = `Fin del código: Falta cerrar "${parCierra(top.abre)}" (abierto en línea ${top.linea}, col ${top.columna}).`;
+    const lineaFinal = lineas.length || 1;
+    primerError = { tipo:"ERROR", lexema:lex, linea:lineaFinal, columna:1 };
+    if(!tokensPorLinea[lineaFinal-1]) tokensPorLinea[lineaFinal-1]=[];
+    tokensPorLinea[lineaFinal-1].push(primerError);
+  }
+
+  if(!primerError){
+    const err = validarSintaxisMinima(tokensPorLinea);
+    if(err){
+      primerError = { tipo:"ERROR", lexema: err.lexema, linea: err.linea, columna: err.columna };
+      const idx = Math.max(0, err.linea-1);
+      if(!tokensPorLinea[idx]) tokensPorLinea[idx]=[];
+      tokensPorLinea[idx].push(primerError);
+    }
+  }
+
+  return { tokensPorLinea, primerError, lineas };
+}
+
+function getTipoDetallado(token) {
+  switch (token.tipo) {
+    case "PALABRA_RESERVADA": return "PALABRA_RESERVADA";
+    case "IDENTIFICADOR":     return "IDENTIFICADOR";
+    case "DELIMITADOR":       return "DELIMITADOR";
+    case "CADENA":            return "LITERAL_CADENA";
+    case "REGEX":             return "LITERAL_REGEX";
+    case "COMENTARIO":        return token.lexema.startsWith("//") ? "COMENTARIO_LINEA" : "COMENTARIO_BLOQUE";
+    case "OPERADOR":          return token.subtipo || "OPERADOR";
+    case "LITERAL":
+      if (token.lexema === "true" || token.lexema === "false") return "LITERAL_BOOLEANO";
+      if (token.lexema === "null") return "LITERAL_NULL";
+      if (/^\d/.test(token.lexema) && token.lexema.includes('.')) return "LITERAL_DECIMAL";
+      return "LITERAL_ENTERO";
+    case "ERROR":             return `ERROR: ${token.lexema}`;
+    default:                  return token.tipo;
+  }
+}
+
+function construirReporte(tokensPorLinea, lineas) {
+  let reporte = "REPORTE DE TOKENS Y LEXEMAS\n";
+  reporte += "============================================================\n\n";
+
+  const allTokens = tokensPorLinea.flat();
+
+  lineas.forEach((linea, i) => {
+    reporte += `Línea ${i + 1}: ${linea}\n`;
+    const tl = (tokensPorLinea[i] || []).filter(t => t.tipo !== "WS");
+    if (tl.length === 0) reporte += "  (sin tokens)\n\n";
+    else {
+      tl.forEach(t => { reporte += `    "${t.lexema}"  ->  ${getTipoDetallado(t)}\n`; });
+      reporte += "\n";
+    }
+  });
+
+  reporte += "RESUMEN DE CONTEO POR PALABRA\n";
+  reporte += "------------------------------------------------------------\n";
+
+  const counts = {};
+  allTokens.forEach(t => {
+    const tipo = getTipoDetallado(t);
+    if (t.tipo === 'WS' || t.tipo === 'ERROR') return;
+    if (!counts[tipo]) counts[tipo] = {};
+    counts[tipo][t.lexema] = (counts[tipo][t.lexema] || 0) + 1;
+  });
+
+  const fmt = (title, cat) => {
+    if (!counts[cat] || !Object.keys(counts[cat]).length) return;
+    reporte += `** ${title}\n`;
+    Object.entries(counts[cat]).sort((a,b)=>b[1]-a[1]).forEach(([lex, n])=>{
+      reporte += `- ${lex} → ${n}\n`;
+    });
+    reporte += "\n";
+  };
+
+  fmt("Palabras Reservadas", "PALABRA_RESERVADA");
+  fmt("Identificadores", "IDENTIFICADOR");
+  fmt("Literales (Enteros)", "LITERAL_ENTERO");
+  fmt("Literales (Decimales)", "LITERAL_DECIMAL");
+  fmt("Literales (Cadenas)", "LITERAL_CADENA");
+  fmt("Literales (Booleanos)", "LITERAL_BOOLEANO");
+  fmt("Literales (Null)", "LITERAL_NULL");
+  fmt("Literales (Regex)", "LITERAL_REGEX");
+  fmt("Delimitadores", "DELIMITADOR");
+  fmt("Operadores Relacionales", "OPERADOR_RELACIONAL");
+  fmt("Operadores Lógicos", "OPERADOR_LOGICO");
+  fmt("Operadores Aritméticos", "OPERADOR_ARITMETICO");
+  fmt("Operadores de Asignación", "OPERADOR_ASIGNACION");
+  fmt("Operador Ternario", "OPERADOR_TERNARIO");
+  fmt("Operador Arrow", "OPERADOR_ARROW");
+  fmt("Operador Spread", "OPERADOR_SPREAD");
+  fmt("Operador Optional Chaining", "OPERADOR_OPTIONAL");
+  fmt("Operador Nullish Coalescing", "OPERADOR_NULLISH");
+
+  return reporte;
+}
+
+// =====================
+// Render coloreado
+// =====================
+function renderPreview(tokensPorLinea){
+  const preview=document.getElementById("preview");
+  const frag=document.createDocumentFragment();
+  for(const tokens of tokensPorLinea){
+    const line=document.createElement("div"); line.className="line";
+    for(const t of tokens){
+      if(t.tipo==="WS"){ line.append(document.createTextNode(t.lexema)); continue; }
+      const span=document.createElement("span");
+      span.className=`token ${claseToken(t)}`;
+      span.innerHTML=escaparHTML(t.lexema);
+      line.append(span);
+    }
+    if(tokens.length===0) line.append(document.createTextNode(""));
+    frag.append(line);
+  }
+  preview.innerHTML=""; preview.append(frag);
+}
+
+// =====================
+// UI (DOM)
+// =====================
+const $ = s => document.querySelector(s);
+const $archivo   = $("#archivo");
+const $entrada   = $("#entrada");
+const $reporte   = $("#reporte");
+const $preview   = $("#preview");
+const $btnAnal   = $("#btn-analizar");
+const $btnDesc   = $("#btn-descargar");
+const $btnLimp   = $("#btn-limpiar");
+const $fileStatus = $("#file-status");
+
+function limpiar(){
+  if ($archivo) $archivo.value="";
+  if ($entrada){
+    $entrada.value="";
+    $entrada.placeholder = "Pega tu código aquí…";
+  }
+  if ($reporte) $reporte.value="";
+  if ($preview) $preview.innerHTML="";
+  if ($btnDesc) $btnDesc.disabled=true;
+  if ($fileStatus) $fileStatus.textContent = "Ningún archivo seleccionado";
+}
+if ($btnLimp) $btnLimp.addEventListener("click", limpiar);
+
+// Carga de archivo en <textarea> al seleccionar
+if ($archivo) {
+  $archivo.addEventListener('change', async e => {
+    const [f] = e.target.files || [];
+    if(!f) {
+      // Si no hay archivo seleccionado, actualizar estado
+      if ($fileStatus) $fileStatus.textContent = "Ningún archivo seleccionado";
+      return;
+    }
+    
+    // Actualizar estado del archivo con el nombre
+    if ($fileStatus) $fileStatus.textContent = `Hay un archivo seleccionado: ${f.name}`;
+    
+    try{
+      const text = await f.text();
+      $entrada.value = text;
+      $entrada.placeholder = "";
+      e.target.value = ''; // permitir re-seleccionar el mismo archivo
+    }catch{
+      (window.Swal
+        ? Swal.fire('Error', 'No se pudo leer el archivo.', 'error')
+        : alert('No se pudo leer el archivo.'));
+      // En caso de error, mantener el estado de archivo seleccionado
+      if ($fileStatus) $fileStatus.textContent = `Error al leer archivo: ${f.name}`;
+    }
+  });
+}
+
+// Actualizar estado del archivo cuando el usuario pegue código directamente
+if ($entrada) {
+  $entrada.addEventListener('input', () => {
+    // Solo actualizar si hay contenido y no hay archivo seleccionado
+    if ($entrada.value.trim() && $fileStatus && $fileStatus.textContent === "Ningún archivo seleccionado") {
+      $fileStatus.textContent = "Código pegado directamente";
+    } else if (!$entrada.value.trim() && $fileStatus && $fileStatus.textContent === "Código pegado directamente") {
+      $fileStatus.textContent = "Ningún archivo seleccionado";
+    }
+  });
+}
+
+// Analizar SIEMPRE lo que está en el textarea (refleja cambios del usuario)
+if ($btnAnal) $btnAnal.addEventListener("click", ()=>{
+  const codigo = ($entrada.value || '').trim();
+
+  if (!codigo) {
+    (window.Swal
+      ? Swal.fire({icon:'warning', title:'Falta contenido', text:'Selecciona un archivo o pega tu código antes de analizar.'})
+      : alert('Selecciona un archivo o pega tu código antes de analizar.'));
+    return;
+  }
+
+  const {tokensPorLinea, primerError, lineas}=analizarTextoCompleto(codigo);
+  renderPreview(tokensPorLinea);
+
+  const rep=construirReporte(tokensPorLinea, lineas);
+  $reporte.value=rep;
+
+  if(primerError){
+    $btnDesc.disabled=true;
+    (window.Swal
+      ? Swal.fire({icon:"error", title:"Contenido inválido", text:`Línea ${primerError.linea}, columna ${primerError.columna}`, footer:`Detalle: ${primerError.lexema}`})
+      : alert(`Contenido inválido. Línea ${primerError.linea}, columna ${primerError.columna}\n${primerError.lexema}`));
+    $reporte.focus();
+    return;
+  }
+
+  $btnDesc.disabled=false;
+  (window.Swal
+    ? Swal.fire("Éxito","Contenido válido. Se coloreó y generó el reporte.","success")
+    : console.log("Contenido válido."));
+  $reporte.focus();
+});
+
+// Descargar reporte
+if ($btnDesc) $btnDesc.addEventListener("click", ()=>{
+  const stamp = new Date().toISOString().replace(/[-:T.Z]/g,'').slice(0,14);
+  const blob=new Blob([$reporte.value], {type:"text/plain;charset=utf-8"});
+  const url=URL.createObjectURL(blob); const a=document.createElement("a");
+  a.href=url; a.download=`Salida-${stamp}.txt`; document.body.appendChild(a); a.click();
+  URL.revokeObjectURL(url); a.remove();
+});
