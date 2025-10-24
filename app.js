@@ -305,3 +305,303 @@ function lexLinea(linea, numLinea, estado) {
   estado.ultimoSignificativo = ultimoSignificativo;
   return {tokens,estado};
 }
+
+// =====================
+// Chequeos sintácticos mínimos (post-lex)
+// =====================
+
+function siguienteTokenValido(tokens, i){
+  let k=i+1; while(k<tokens.length && (tokens[k].tipo==="WS" || tokens[k].tipo==="COMENTARIO")) k++;
+  return {tok: tokens[k] || null, idx:k};
+}
+
+// ---- Helpers para reglas adicionales ----
+function esPrimario(t) {
+  // Tokens que por sí solos pueden iniciar/ser una expresión
+  return t && (
+    t.tipo === "IDENTIFICADOR" ||
+    t.tipo === "LITERAL" ||
+    t.tipo === "CADENA" ||
+    t.tipo === "REGEX" ||
+    (t.tipo === "DELIMITADOR" && ["(","[","{"].includes(t.lexema))
+  );
+}
+
+function esTokenValidoEnSecuencia(t, sig, estado = {}) {
+  // Verifica si dos tokens pueden aparecer consecutivamente
+  if (!t || !sig) return true;
+  
+  // Si estamos dentro de un template literal, permitir más secuencias
+  if (estado.enTemplate) {
+    // En template literals, casi cualquier secuencia es válida
+    return true;
+  }
+  
+  // Casos válidos específicos
+  const casosValidos = [
+    // Parámetros de función: ( identificador/literal/cadena/objeto
+    t.tipo === "DELIMITADOR" && t.lexema === "(" && (sig.tipo === "IDENTIFICADOR" || sig.tipo === "LITERAL" || sig.tipo === "CADENA" || sig.tipo === "DELIMITADOR"),
+    
+    // Llamadas de función: identificador (
+    t.tipo === "IDENTIFICADOR" && sig.tipo === "DELIMITADOR" && sig.lexema === "(",
+    
+    // Array/objeto: [ literal/identificador/cadena/objeto
+    t.tipo === "DELIMITADOR" && t.lexema === "[" && (sig.tipo === "LITERAL" || sig.tipo === "IDENTIFICADOR" || sig.tipo === "CADENA" || sig.tipo === "DELIMITADOR"),
+    
+    // Objeto literal: { identificador
+    t.tipo === "DELIMITADOR" && t.lexema === "{" && sig.tipo === "IDENTIFICADOR",
+    
+    // Objeto literal en parámetros: ( {
+    t.tipo === "DELIMITADOR" && t.lexema === "(" && sig.tipo === "DELIMITADOR" && sig.lexema === "{",
+    
+    // Objeto literal en arrays: [ { identificador
+    t.tipo === "DELIMITADOR" && t.lexema === "[" && sig.tipo === "DELIMITADOR" && sig.lexema === "{",
+    
+    // Operador ternario: ? literal/identificador/cadena
+    t.tipo === "OPERADOR" && t.lexema === "?" && (sig.tipo === "LITERAL" || sig.tipo === "IDENTIFICADOR" || sig.tipo === "CADENA"),
+    
+    // Operador ternario: : literal/identificador/cadena
+    t.tipo === "OPERADOR" && t.lexema === ":" && (sig.tipo === "LITERAL" || sig.tipo === "IDENTIFICADOR" || sig.tipo === "CADENA"),
+    
+    // Coma en arrays/objetos: , literal/identificador/cadena/objeto
+    t.tipo === "DELIMITADOR" && t.lexema === "," && (sig.tipo === "LITERAL" || sig.tipo === "IDENTIFICADOR" || sig.tipo === "CADENA" || sig.tipo === "DELIMITADOR"),
+    
+    // Punto en notación de objeto: . identificador
+    t.tipo === "DELIMITADOR" && t.lexema === "." && sig.tipo === "IDENTIFICADOR",
+    
+    // Acceso a arrays: identificador [
+    t.tipo === "IDENTIFICADOR" && sig.tipo === "DELIMITADOR" && sig.lexema === "[",
+    
+    // Acceso a arrays: [ literal
+    t.tipo === "DELIMITADOR" && t.lexema === "[" && sig.tipo === "LITERAL",
+    
+    // Operadores unarios: ! literal/identificador/cadena
+    t.tipo === "OPERADOR" && t.lexema === "!" && (sig.tipo === "LITERAL" || sig.tipo === "IDENTIFICADOR" || sig.tipo === "CADENA"),
+    
+    // Operadores unarios: - literal/identificador/cadena
+    t.tipo === "OPERADOR" && t.lexema === "-" && (sig.tipo === "LITERAL" || sig.tipo === "IDENTIFICADOR" || sig.tipo === "CADENA"),
+    
+    // Operadores unarios: + literal/identificador/cadena
+    t.tipo === "OPERADOR" && t.lexema === "+" && (sig.tipo === "LITERAL" || sig.tipo === "IDENTIFICADOR" || sig.tipo === "CADENA"),
+    
+    // Palabras reservadas seguidas de identificador (return, throw, new, etc.)
+    t.tipo === "PALABRA_RESERVADA" && ["return", "throw", "new", "typeof", "void", "delete"].includes(t.lexema) && 
+    (sig.tipo === "IDENTIFICADOR" || sig.tipo === "LITERAL" || sig.tipo === "CADENA"),
+    
+    // Palabras reservadas seguidas de ( (if, for, while, etc.)
+    t.tipo === "PALABRA_RESERVADA" && ["if", "for", "while", "switch", "catch"].includes(t.lexema) && 
+    sig.tipo === "DELIMITADOR" && sig.lexema === "(",
+    
+    // Palabras reservadas seguidas de { (function, class, etc.)
+    t.tipo === "PALABRA_RESERVADA" && ["function", "class", "if", "else", "for", "while", "switch", "try", "catch", "finally"].includes(t.lexema) && 
+    sig.tipo === "DELIMITADOR" && sig.lexema === "{",
+    
+    // Palabras reservadas seguidas de identificador (let, const, var)
+    t.tipo === "PALABRA_RESERVADA" && ["let", "const", "var"].includes(t.lexema) && sig.tipo === "IDENTIFICADOR",
+    
+    // Declaraciones de clase: class identificador
+    t.tipo === "PALABRA_RESERVADA" && t.lexema === "class" && sig.tipo === "IDENTIFICADOR",
+    
+    // Declaraciones de clase: identificador {
+    t.tipo === "IDENTIFICADOR" && sig.tipo === "DELIMITADOR" && sig.lexema === "{",
+    
+    // Destructuring: { identificador
+    t.tipo === "DELIMITADOR" && t.lexema === "{" && sig.tipo === "IDENTIFICADOR",
+    
+    // Destructuring: [ identificador
+    t.tipo === "DELIMITADOR" && t.lexema === "[" && sig.tipo === "IDENTIFICADOR",
+    
+    // Arrow function: ) =>
+    t.tipo === "DELIMITADOR" && t.lexema === ")" && sig.tipo === "OPERADOR" && sig.lexema === "=>",
+    
+    // Arrow function: identificador =>
+    t.tipo === "IDENTIFICADOR" && sig.tipo === "OPERADOR" && sig.lexema === "=>",
+    
+    // Async/await: async function/identificador
+    t.tipo === "PALABRA_RESERVADA" && t.lexema === "async" && (sig.tipo === "PALABRA_RESERVADA" || sig.tipo === "IDENTIFICADOR"),
+    
+    // Await: await identificador/literal/cadena
+    t.tipo === "PALABRA_RESERVADA" && t.lexema === "await" && (sig.tipo === "IDENTIFICADOR" || sig.tipo === "LITERAL" || sig.tipo === "CADENA"),
+    
+    // Import/export: import/export { identificador
+    t.tipo === "PALABRA_RESERVADA" && ["import", "export"].includes(t.lexema) && 
+    sig.tipo === "DELIMITADOR" && sig.lexema === "{",
+    
+    // From: } from
+    t.tipo === "DELIMITADOR" && t.lexema === "}" && sig.tipo === "PALABRA_RESERVADA" && sig.lexema === "from",
+    
+    // As: identificador as
+    t.tipo === "IDENTIFICADOR" && sig.tipo === "PALABRA_RESERVADA" && sig.lexema === "as",
+    
+    // Of: } of
+    t.tipo === "DELIMITADOR" && t.lexema === "}" && sig.tipo === "PALABRA_RESERVADA" && sig.lexema === "of",
+    
+    // Template literal: ` contenido
+    t.tipo === "CADENA" && t.lexema === "`" && (sig.tipo === "CADENA" || sig.tipo === "DELIMITADOR"),
+    
+    // Template literal: } texto (después de expresión en template)
+    t.tipo === "DELIMITADOR" && t.lexema === "}" && sig.tipo === "CADENA",
+    
+    // Template literal: literal texto (después de literal en template)
+    t.tipo === "LITERAL" && sig.tipo === "CADENA",
+    
+    // Template literal: identificador texto (después de identificador en template)
+    t.tipo === "IDENTIFICADOR" && sig.tipo === "CADENA",
+    
+    // Template expression: ${ identificador/literal/cadena
+    t.tipo === "DELIMITADOR" && t.lexema === "${" && (sig.tipo === "IDENTIFICADOR" || sig.tipo === "LITERAL" || sig.tipo === "CADENA"),
+    
+    // Optional chaining: ?. identificador
+    t.tipo === "OPERADOR" && t.lexema === "?." && sig.tipo === "IDENTIFICADOR",
+    
+    // Nullish coalescing: ?? literal/identificador/cadena
+    t.tipo === "OPERADOR" && t.lexema === "??" && (sig.tipo === "LITERAL" || sig.tipo === "IDENTIFICADOR" || sig.tipo === "CADENA"),
+    
+    // Spread operator: ... identificador/literal/cadena
+    t.tipo === "OPERADOR" && t.lexema === "..." && (sig.tipo === "IDENTIFICADOR" || sig.tipo === "LITERAL" || sig.tipo === "CADENA"),
+    
+    // Operadores de comparación seguidos de literal/identificador/cadena/objeto
+    t.tipo === "OPERADOR" && ["<", ">", "<=", ">=", "==", "===", "!=", "!=="].includes(t.lexema) && 
+    (sig.tipo === "LITERAL" || sig.tipo === "IDENTIFICADOR" || sig.tipo === "CADENA" || sig.tipo === "DELIMITADOR"),
+    
+    // Operadores aritméticos seguidos de literal/identificador/cadena/objeto
+    t.tipo === "OPERADOR" && ["+", "-", "*", "/", "%", "**"].includes(t.lexema) && 
+    (sig.tipo === "LITERAL" || sig.tipo === "IDENTIFICADOR" || sig.tipo === "CADENA" || sig.tipo === "DELIMITADOR"),
+    
+    // Operadores lógicos seguidos de literal/identificador/cadena/objeto
+    t.tipo === "OPERADOR" && ["&&", "||"].includes(t.lexema) && 
+    (sig.tipo === "LITERAL" || sig.tipo === "IDENTIFICADOR" || sig.tipo === "CADENA" || sig.tipo === "DELIMITADOR"),
+    
+    // Operadores de asignación seguidos de literal/identificador/cadena/objeto
+    t.tipo === "OPERADOR" && ["=", "+=", "-=", "*=", "/=", "%=", "**=", "&&=", "||=", "??="].includes(t.lexema) && 
+    (sig.tipo === "LITERAL" || sig.tipo === "IDENTIFICADOR" || sig.tipo === "CADENA" || sig.tipo === "DELIMITADOR"),
+    
+    // Concatenación de strings: cadena + cadena
+    t.tipo === "CADENA" && sig.tipo === "OPERADOR" && sig.lexema === "+",
+    
+    // Concatenación de strings: cadena + literal/identificador
+    t.tipo === "CADENA" && sig.tipo === "OPERADOR" && ["+", "-", "*", "/", "%"].includes(sig.lexema),
+    
+    // Concatenación de strings: literal/identificador + cadena
+    (t.tipo === "LITERAL" || t.tipo === "IDENTIFICADOR") && sig.tipo === "OPERADOR" && sig.lexema === "+" && 
+    sig.tipo === "CADENA",
+    
+    // Strings en comparaciones: cadena == cadena
+    t.tipo === "CADENA" && sig.tipo === "OPERADOR" && ["==", "===", "!=", "!==", "<", ">", "<=", ">="].includes(sig.lexema),
+    
+    // Strings en operadores lógicos: cadena && cadena
+    t.tipo === "CADENA" && sig.tipo === "OPERADOR" && ["&&", "||"].includes(sig.lexema)
+  ];
+  
+  return casosValidos.some(caso => caso);
+}
+
+function esInicioDeSentencia(flat, i) {
+  if (i === 0) return true;
+  let k = i - 1;
+  while (k >= 0 && (flat[k].tipo === "WS" || flat[k].tipo === "COMENTARIO")) k--;
+  if (k < 0) return true;
+  const p = flat[k];
+  return (p.tipo === "DELIMITADOR" && (p.lexema === "{" || p.lexema === ";")) ||
+        (p.tipo === "PALABRA_RESERVADA" && p.lexema === "return");
+}
+
+function validarSintaxisMinima(tokensPorLinea){
+  const flat = tokensPorLinea.flat().filter(t => t.tipo!=="WS" && t.tipo!=="COMENTARIO");
+
+  for(let i=0;i<flat.length;i++){
+    const t=flat[i];
+
+    // let/const/var → IDENTIFICADOR y luego algo permitido (= , ; ) in of)
+    if(t.tipo==="PALABRA_RESERVADA" && ["let","const","var"].includes(t.lexema)){
+      const {tok:n1, idx:i1} = siguienteTokenValido(flat, i);
+      if(!n1 || n1.tipo!=="IDENTIFICADOR"){
+        return {linea:(n1||t).linea, columna:(n1||t).columna, lexema:`Se esperaba IDENTIFICADOR después de "${t.lexema}"`};
+      }
+      const {tok:n2} = siguienteTokenValido(flat, i1);
+      const okDespuesDecl = n2 &&
+        (
+          (n2.tipo==="OPERADOR" && n2.lexema==="=") ||
+          (n2.tipo==="DELIMITADOR" && (n2.lexema==="," || n2.lexema===";" || n2.lexema===")")) ||
+          (n2.tipo==="PALABRA_RESERVADA" && (n2.lexema==="in" || n2.lexema==="of"))
+        );
+      if(!n2 || !okDespuesDecl){
+        return {linea:(n2||n1).linea, columna:(n2||n1).columna, lexema:`Después de la declaración debe venir "=", ",", ";", ")" o "in/of"`};
+      }
+    }
+
+    // function: en declaración exige nombre
+    if(t.tipo==="PALABRA_RESERVADA" && t.lexema==="function"){
+      const prev = flat[i-1];
+      const esExpresion = prev && (
+        (prev.tipo==="DELIMITADOR" && [":",",","(","{"].includes(prev.lexema)) ||
+        (prev.tipo==="OPERADOR" && prev.lexema==="=") ||
+        (prev.tipo==="PALABRA_RESERVADA" && prev.lexema==="return")
+      );
+      const {tok} = siguienteTokenValido(flat, i);
+      if(!esExpresion){
+        if(tok && tok.tipo==="DELIMITADOR" && tok.lexema==="("){
+          return {linea: tok.linea, columna: tok.columna, lexema:`Falta nombre de función (se obtuvo "(" inmediatamente después de "function")`};
+        }
+        if(!tok || tok.tipo!=="IDENTIFICADOR"){
+          return {linea:(tok||t).linea, columna:(tok||t).columna, lexema:`Se esperaba nombre de función después de "function"`};
+        }
+      }
+    }
+
+    //fin persona 2
+    
+    // if → requiere "("
+    if(t.tipo==="PALABRA_RESERVADA" && t.lexema==="if"){
+      const {tok} = siguienteTokenValido(flat, i);
+      if(!tok || tok.tipo!=="DELIMITADOR" || tok.lexema!=="("){
+        return {linea:(tok||t).linea, columna:(tok||t).columna, lexema:`Se esperaba "(" después de "if"`};
+      }
+    }
+
+    // patrón inválido específico: "===!"
+    if(t.tipo==="OPERADOR" && t.lexema==="==="){
+      const {tok} = siguienteTokenValido(flat, i);
+      if(tok && tok.tipo==="OPERADOR" && tok.lexema==="!"){
+        return {linea: tok.linea, columna: tok.columna, lexema:`Secuencia de operadores inválida "===!"`};
+      }
+    }
+
+
+    if (esPrimario(t)) {
+      const { tok: sig } = siguienteTokenValido(flat, i);
+      if (sig && esPrimario(sig)) {
+        // Determinar si estamos en template literal
+        const estado = { enTemplate: false };
+        let enTemplate = false;
+        for (let j = 0; j < i; j++) {
+          if (flat[j].tipo === "CADENA" && flat[j].lexema === "`") {
+            enTemplate = !enTemplate;
+          }
+        }
+        estado.enTemplate = enTemplate;
+        
+        if (!esTokenValidoEnSecuencia(t, sig, estado)) {
+          return {
+            linea: sig.linea,
+            columna: sig.columna,
+            lexema: `Se esperaba operador o delimitador entre "${t.lexema}" y "${sig.lexema}"`
+          };
+        }
+      }
+    }
+
+
+    if(t.tipo==="IDENTIFICADOR" && esInicioDeSentencia(flat, i)){
+      const {tok:p1, idx:i1} = siguienteTokenValido(flat, i);
+      const {tok:p2} = siguienteTokenValido(flat, i1);
+      if(p1 && p2 &&
+        p1.tipo==="DELIMITADOR" && p1.lexema==="." &&
+        p2.tipo==="IDENTIFICADOR" && p2.lexema==="log" &&
+        t.lexema !== "console"){
+        return {linea: t.linea, columna: t.columna, lexema:`Llamada a ".log" sobre "${t.lexema}". ¿Quisiste decir "console.log"?`};
+      }
+    }
+  }
+  return null;
+}
