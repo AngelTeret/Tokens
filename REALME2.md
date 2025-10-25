@@ -105,7 +105,3 @@ El código en `app.js` está organizado de manera lógica para facilitar su comp
 5.  **Validación Sintáctica**: La función `validarSintaxisMinima`.
 6.  **Generación de Salida**: Las funciones `construirReporte` y `renderPreview`.
 7.  **Manejadores de Eventos (UI)**: El código que conecta los botones y los campos de entrada del DOM con la lógica del analizador.
-
-## 🤝 Contribuciones
-
-Las contribuciones son bienvenidas. Si tienes ideas para nuevas características, mejoras en el algoritmo de análisis o correcciones de errores, no dudes en abrir un *issue* para discutirlo o enviar un *pull request*.
