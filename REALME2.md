@@ -1,7 +1,5 @@
 # Analizador y Coloreador Léxico para JavaScript
 
-![Banner del Analizador Léxico](https://i.imgur.com/8i2N3gV.png)
-
 Este proyecto es una herramienta web sofisticada que realiza un **análisis léxico** y **coloreado de sintaxis** para código JavaScript. Ha sido desarrollado desde cero utilizando exclusivamente **HTML, CSS y JavaScript puro (Vanilla JS)**, sin depender de frameworks o librerías externas para su lógica central.
 
 La aplicación permite a los usuarios cargar un archivo `.js` o pegar código directamente. Al analizarlo, la herramienta descompone el código fuente en una secuencia de unidades léxicas llamadas *tokens*. Posteriormente, utiliza esta información para renderizar una vista previa del código con resaltado de sintaxis y generar un informe exhaustivo del análisis.
