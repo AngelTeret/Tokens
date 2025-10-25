@@ -1,0 +1,10 @@
+// Error: Paréntesis mal cerrados
+function saludar(nombre {
+    return "Hola, " + nombre + "!";
+}
+
+let mensaje = saludar("Mundo");
+console.log(mensaje);
+
+
+
